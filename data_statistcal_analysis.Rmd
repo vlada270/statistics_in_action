@@ -1,0 +1,774 @@
+---
+title: "MAP566 - Homework assignment #1"
+format:
+  html:
+    self-contained: true
+    theme: [cosmo, theme.scss]
+    toc: true
+    number-sections: true
+    html-math-method: katex
+    code-copy: true
+    code-summary: "Show the code"
+    code-overflow: wrap
+---
+
+# Single comparison
+
+```{r,warning=FALSE}
+library(readr)
+NHANES <- read_csv("NHANES_age_prediction 3.csv")
+data = NHANES[,c("DIQ010","age_group","RIDAGEYR","RIAGENDR","PAQ605","BMXBMI","LBXGLU","LBXGLT","LBXIN")]
+colnames(data) = c("Diabete","age_group","Age","Sex","Phys_activ","BMI","Glu","Glu2h","BIL")
+```
+
+We study data from the National Health and Nutrition Examination Survey (NHANES), administered by the Centers for Disease Control and Prevention (CDC), which collects extensive health and nutritional information from a diverse U.S. population.
+
+
+```{r}
+rmarkdown::paged_table(data)
+```
+
+
+The variables under study are :
+
+  - `Diabete`: diabete diagnosis (1: Yes, 2: No, 3: Borderline);
+  - `age_group` : age group of respondent ("Adult" or "Senior");
+  - `Age` : the age of respondent;
+  - `Sex`: sex of respondent (1: Male, 2: Female);
+  - `Physical activity`: respondent's answer to the question "Does your work involve vigorous-intensity activity that causes large increases in breathing or heart rate like carrying or lifting heavy loads, digging or construction work for at least 10 minutes continuously? (1: Yes, 2: No, 7: no answer);
+  - `BMI` : Body Mass Index if respondent ($kg/m^{2}$);
+  - `Glu` : Respondent's Blood Glucose after fasting ($mg/dL$);
+  - `Glu2h` : Respondent's Two Hours Blood Glucose ($mg/dL$);
+  - `BIL` : Respondent's Blood Insulin Level ($pmol/L$).
+  
+
+1. Test if the mean level of blood glucose after fasting is the same for diabetic and non diabetic respondents (*hint:* plot first the data and justify the test(s) to use).
+```{r}
+library(tidyverse)
+NHANES <- read_csv("NHANES_age_prediction 3.csv")
+head(NHANES) 
+
+# Filter out borderline cases (DIQ010 == 3)
+filtered_NHANES <- NHANES %>% filter(DIQ010 %in% c(1, 2))
+
+# Boxplot: Fasting Blood Glucose Levels by Diabetes Status
+ggplot(filtered_NHANES, aes(x = as.factor(DIQ010), y = LBXGLU, fill = as.factor(DIQ010))) +
+  geom_boxplot() +
+  labs(title = "Fasting Blood Glucose Levels for Diabetic and Non-Diabetic Respondents",
+       x = "Diabetes Status (1=Yes, 2=No)",
+       y = "Fasting Blood Glucose (mg/dL)") +
+  theme_minimal()
+
+# Perform t-test (compare glucose levels between diabetics (1) and non-diabetics (2))
+t.test(LBXGLU ~ as.factor(DIQ010), data = filtered_NHANES)
+
+```
+    
+2. Test for the diabetic respondents if the mean level of blood glucose after fasting is the same for adults and seniors. 
+```{r}
+# Filter only diabetic respondents (DIQ010 == 1)
+diabetic_data <- NHANES %>% filter(DIQ010 == 1)
+
+# Ensure age_group is a factor
+diabetic_data$age_group <- as.factor(diabetic_data$age_group)
+
+# Boxplot: Fasting Blood Glucose for Adults vs. Seniors
+ggplot(diabetic_data, aes(x = age_group, y = LBXGLU, fill = age_group)) +
+  geom_boxplot() +
+  labs(title = "Fasting Blood Glucose Levels: Adults vs Seniors (Diabetics Only)",
+       x = "Age Group",
+       y = "Fasting Blood Glucose (mg/dL)") +
+  theme_minimal()
+
+# Perform t-test (Compare Adults vs Seniors)
+t.test(LBXGLU ~ age_group, data = diabetic_data)
+```
+
+  
+3. Is it possible to test for the adults diabetic respondents if the mean level of blood glucose after fasting is the same for those who have a vigorous work activity and for those who have not?
+```{r}
+# Filter only diabetic adults
+diabetic_adults <- NHANES %>% filter(DIQ010 == 1 & age_group == "Adult")
+
+# Ensure Phys_activ (PAQ605) is a factor
+diabetic_adults$Phys_activ <- as.factor(diabetic_adults$PAQ605)
+
+# Boxplot: Fasting Blood Glucose for Physically Active vs. Inactive Diabetic Adults
+ggplot(diabetic_adults, aes(x = Phys_activ, y = LBXGLU, fill = Phys_activ)) +
+  geom_boxplot() +
+  labs(title = "Fasting Blood Glucose: Physically Active vs Inactive (Diabetic Adults)",
+       x = "Physical Activity (1 = Yes, 2 = No)",
+       y = "Fasting Blood Glucose (mg/dL)") +
+  theme_minimal()
+
+# Perform t-test (Compare Physically Active vs Inactive Diabetic Adults)
+t.test(LBXGLU ~ Phys_activ, data = diabetic_adults)
+```
+
+
+4. Test if the proportion of diabetic is the same for male and female respondents. Compare conclusions of several tests. You can use the function `table` to compute contingency tables. 
+```{r}
+# Convert Sex and Diabetes to factors
+NHANES$Sex <- as.factor(NHANES$RIAGENDR)  # 1 = Male, 2 = Female
+NHANES$Diabetes <- as.factor(NHANES$DIQ010)  # 1 = Yes, 2 = No, 3 = Borderline
+
+# Create a contingency table (counts of diabetics by sex)
+diabetes_sex_table <- table(NHANES$Diabetes, NHANES$Sex)
+print(diabetes_sex_table)
+
+# Perform a Chi-Square Test (to check if diabetes prevalence differs by gender)
+chisq.test(diabetes_sex_table)
+```
+
+
+# Gene expression data
+
+The *liver* dataset contains measurements of rat liver toxicity levels (measured through cholesterol levels) as well as measurements of the expression levels of several thousand genes.
+
+When loading the data (file `liver_data.rda`), the table *liver* is created with 64 rows (the observations) and 3117 columns. The data can be loaded using the following code:
+
+```{r}
+load("liver_data.rda")
+```
+
+The first column, `cholesterol`, is the variable to be explained. The remaining 3116 are the expressions of 3116 genes (more precisely, the logarithm of the ratio between expression levels in two experimental conditions). The aim is to identify the variables (and therefore the genes) linked to the response.
+```{r}
+head(liver)
+```
+
+1. We first want to study the gene which is the most correlated with the level of cholesterol. Identify this gene and plot `cholesterol` as a function of this gene expression level. Fit a linear model. Test if there is a significant relation between this gene expression and `cholesterol`?
+
+```{r}
+# Finding most correlated gene
+cholesterol_values <- liver$cholesterol
+gene_cols <- liver[, colnames(liver) != "cholesterol"]
+gene_correlations <- numeric(length = ncol(gene_cols)) # creating vector
+
+for (i in 1:ncol(gene_cols)) { # Correlation for each gene
+    gene_correlations[i] <- cor(gene_cols[, i], cholesterol_values, use = "complete.obs")
+}
+max_correlation_index <- which.max(abs(gene_correlations))
+best_gene <- colnames(gene_cols)[max_correlation_index]
+best_gene_correlation <- gene_correlations[max_correlation_index]
+cat("The most correlated gene is:", best_gene, "\n")
+cat("Its correlation with cholesterol is:", best_gene_correlation, "\n")
+
+# Plot cholesterol vs gene expression of the one with highest correlation
+plot(gene_cols[, best_gene], cholesterol_values,
+     main = paste("Cholesterol vs", best_gene),
+     xlab = best_gene, ylab = "Cholesterol", pch = 16)
+
+# Fit a linear model
+model <- lm(cholesterol_values ~ gene_cols[, best_gene])
+abline(model, col = "red", lwd = 2)
+summary(model)
+
+```
+
+
+2. We now wish to perform the previous test for all of the 3116 genes. For each of the genes, fit a linear model that explains `cholesterol` as a function of the gene expression and compute the $p$-value of the test.
+```{r}
+p_values <- numeric(ncol(gene_cols))
+
+for (i in 1:ncol(gene_cols)) {
+  model <- lm(cholesterol_values ~ gene_cols[, i])
+  model_summary <- summary(model)
+  p_values[i] <- model_summary$coefficients[2, 4]
+}
+head(p_values)
+```
+
+3. Order the $p$-values and plot the ordered $p$-values as a function of their rank. On the same plot, display the line $y = x/3116$. Discuss the result.
+```{r}
+ordered_p_values <- sort(p_values)
+
+plot(ordered_p_values, 
+     main = "Ordered p-values vs Rank", 
+     xlab = "Rank", 
+     ylab = "Ordered p-values", 
+     pch = 16, 
+     col = "blue", 
+     type = "b",  # Connect points with lines
+     cex = 0.6)
+
+# y = x/3116
+abline(a = 0, b = 1/3116, col = "red", lwd = 2, lty = 2)
+grid()
+```
+
+4. Identify a set of genes linked to the response (*aka* discoveries). We want to guarantee that the expected proportion of false discoveries (mistakes) is less than $5\%$. Explain how you proceed and how many genes you discover.
+
+```{r}
+# FDR threshold
+alpha <- 0.05
+m <- length(p_values) 
+H_m <- sum(1 / (1:m))
+by_critical_values <- (1:m) / (m * H_m) * alpha
+cat("Critical value of largest p-value of discovery:", by_critical_values[546] , "\n")
+
+significant_index <- max(which(ordered_p_values <= by_critical_values), na.rm = TRUE)
+num_significant_genes <- significant_index
+cat("Number of significant genes:", num_significant_genes, "\n")
+
+significant_genes <- colnames(gene_cols)[order(p_values)][1:num_significant_genes]
+```
+
+5. We wish to be more conservative and guarantee that the probability of making a false discovery (or more) is less than $5\%$. Explain how you proceed and how many genes you discover.
+```{r}
+# Bonferroni to control FWER
+alpha <- 0.05  
+bonferroni_threshold <- alpha / m
+cat("Bonferroni threshold:", bonferroni_threshold, "\n")
+num_bonferroni_genes <- sum(ordered_p_values <= bonferroni_threshold)
+cat("Number of significant genes using Bonferroni correction:", num_bonferroni_genes, "\n")
+significant_genes_bonferroni <- colnames(gene_cols)[order(p_values)][1:num_bonferroni_genes]
+
+# Plotting BY and Bonferroni:
+num_points_to_plot <- 600  # Plotting only 600 
+
+plot(ordered_p_values[1:num_points_to_plot], 
+     main = "Comparison of BY and Bonferroni Thresholds",
+     xlab = "Rank", 
+     ylab = "p-values",
+     col = "blue", 
+     pch = 16,
+     type = "b", 
+     cex = 0.6)
+
+lines(1:num_points_to_plot, by_critical_values[1:num_points_to_plot], col = "red", lwd = 2, lty = 2) # BY
+abline(h = bonferroni_threshold, col = "purple", lwd = 2, lty = 2) # Bonferoni
+
+points(1:num_significant_genes, ordered_p_values[1:num_significant_genes], col = "green", pch = 16) # BY discoveries
+bonferroni_significant_indices <- which(ordered_p_values <= bonferroni_threshold)
+points(bonferroni_significant_indices, ordered_p_values[bonferroni_significant_indices], col = "orange", pch = 16) # Bonferroni discoveries
+
+legend("topleft", legend = c("p-values", "BY Critical Values", "Bonferroni Threshold", "BY Significant Genes", "Bonferroni Significant Genes"),
+       col = c("blue", "red", "purple", "green", "orange"), 
+       pch = c(16, NA, NA, 16, 16), 
+       lty = c(NA, 2, 2, NA, NA))
+```
+
+
+# Non parametric regression
+
+1. Upload the dataset contained in the file `data_exo3.csv` and plot the data.  
+
+# 1) Load the dataset and plot the data
+
+```{r}
+data <- read.csv("data_exo3_transforme.csv", sep=";", dec=".")
+
+x <- data[, 1]
+y <- data[, 2]
+
+plot(x, y, col="blue", pch=16, main="Observed Data", xlab="x", ylab="y")
+legend("topright", legend="Data", col="blue", pch=16)
+```
+
+
+2. Try several polynomial models for the data, select a model and comment the results.
+
+```{r}
+library(ggplot2)
+library(caret)  
+library(glmnet)
+
+# Define the degrees to test
+degrees <- 1:10
+best_degree <- 7  # Selected degree
+r2_scores <- c()
+mse_scores <- c()
+cv_scores <- c()
+
+# Initialize a list to store the models
+models <- list()
+
+# Create multiple subplots
+par(mfrow = c(5, 2), mar = c(4, 4, 2, 1))
+
+for (d in degrees) {
+  # Construct polynomial terms
+  formula <- as.formula(paste("y ~ poly(x, ", d, ", raw=TRUE)"))
+  model <- lm(formula, data = data)
+  models[[d]] <- model  # Store the model
+  
+  # Predictions and metrics
+  y_pred <- predict(model, newdata = data.frame(x = x))
+  r2 <- summary(model)$r.squared
+  mse <- mean((y - y_pred)^2)
+  
+  # Cross-validation
+  cv_results <- train(formula, data = data, method = "lm",
+                      trControl = trainControl(method = "cv", number = 5),
+                      metric = "Rsquared")
+  cv_score <- mean(cv_results$resample$Rsquared)
+  
+  # Store metrics
+  r2_scores <- c(r2_scores, r2)
+  mse_scores <- c(mse_scores, mse)
+  cv_scores <- c(cv_scores, cv_score)
+  
+  # Plot polynomial regression results
+  plot(x, y, col="blue", pch=16, main=paste("Polynomial Regression Degree", d),
+       xlab="x", ylab="y")
+  lines(sort(x), predict(model, newdata = data.frame(x = sort(x))), col="red", lwd=2)
+  legend("topright", legend=paste("Poly", d, sprintf("R²=%.3f", r2)), col="red", lwd=2)
+}
+
+# Reset plot layout
+par(mfrow = c(1, 1))
+
+# Plot the evolution of R² as a function of polynomial degree
+df_scores <- data.frame(Degree = degrees, R2 = r2_scores)
+
+ggplot(df_scores, aes(x = Degree, y = R2)) +
+  geom_line(color = "blue") +
+  geom_point(color = "blue") +
+  labs(title = "R² Score vs Polynomial Degree", x = "Polynomial Degree", y = "R² Score") +
+  theme_minimal()
+
+```
+
+
+3. Fit a nonlinear model and compare with the polynomial model you have selected. 
+```{r}
+library(ggplot2)
+library(nlstools)  # For logistic regression fitting
+library(car)        # For QQ-plot
+library(polycor)    # For polynomial regression
+library(MASS)       # For qqPlot
+
+# Define the logistic model
+logistic_model <- function(x, A, gamma, tau) {
+  A / (1 + exp(-gamma * (x - tau)))
+}
+
+# Initial parameter estimates
+initial_params <- list(A = max(y), gamma = 1, tau = median(x))
+
+# Fit logistic model using non-linear least squares
+logistic_fit <- nls(y ~ logistic_model(x, A, gamma, tau), 
+                    data = data, start = initial_params)
+
+# Compute fitted values and residuals
+y_logistic <- predict(logistic_fit)
+residuals_logistic <- y - y_logistic
+
+# Compute R² for logistic model
+ss_total <- sum((y - mean(y))^2)
+ss_residual_logistic <- sum(residuals_logistic^2)
+r_squared_logistic <- 1 - (ss_residual_logistic / ss_total)
+
+# Fit polynomial regression (degree 7)
+poly_model <- lm(y ~ poly(x, 7, raw = TRUE), data = data)
+
+# Compute fitted values and residuals for polynomial regression
+y_poly <- predict(poly_model)
+residuals_poly <- y - y_poly
+ss_residual_poly <- sum(residuals_poly^2)
+r_squared_poly <- 1 - (ss_residual_poly / ss_total)
+
+# === PLOTS ===
+par(mfrow = c(1, 2))
+
+# 1. Scatter plot with logistic and polynomial regression fits
+plot(x, y, col = "blue", pch = 16, main = "Logistic vs Polynomial Regression",
+     xlab = "x", ylab = "y")
+lines(x, y_logistic, col = "red", lwd = 2)
+lines(x, y_poly, col = "green", lwd = 2)
+legend("topright", legend = c(paste("Logistic Fit (R²=", round(r_squared_logistic, 3), ")"),
+                              paste("Polynomial Fit (deg 7, R²=", round(r_squared_poly, 3), ")")),
+       col = c("red", "green"), lwd = 2)
+
+# 2. Residuals vs Fitted Values
+plot(y_logistic, residuals_logistic, col = "red", pch = 16, 
+     main = "Residuals vs Fitted Values", xlab = "Fitted Values", ylab = "Residuals")
+points(y_poly, residuals_poly, col = "green", pch = 16)
+abline(h = 0, lty = "dashed")
+legend("topright", legend = c("Logistic Residuals", "Polynomial Residuals"),
+       col = c("red", "green"), pch = 16)
+
+# Reset plotting layout
+par(mfrow = c(1, 1))
+
+# === Histogram & QQ-Plot ===
+par(mfrow = c(1, 2))
+
+# Histogram of residuals
+hist(residuals_logistic, breaks = 20, col = rgb(1, 0, 0, 0.5), main = "Histogram of Residuals",
+     xlab = "Residuals", freq = FALSE)
+hist(residuals_poly, breaks = 20, col = rgb(0, 1, 0, 0.5), add = TRUE)
+legend("topright", legend = c("Logistic Residuals", "Polynomial Residuals"), 
+       fill = c(rgb(1, 0, 0, 0.5), rgb(0, 1, 0, 0.5)))
+
+# QQ-Plot
+qqPlot(residuals_logistic, main = "QQ-Plot of Logistic Residuals")
+
+# Reset plotting layout
+par(mfrow = c(1, 1))
+
+# Print results
+cat(sprintf("Logistic Regression R²: %.5f\n", r_squared_logistic))
+cat(sprintf("Polynomial Regression (deg 7) R²: %.5f\n", r_squared_poly))
+
+```
+
+4. Calculate confidence intervals for $\mathbb{E}(Y_{new})$ and prediction intervals for $Y_{new}$ on the following values of the covariate: 
+$$
+x_{new} = (1,...,10). 
+$$
+```{r}
+# upload 
+library(ggplot2)
+library(dplyr)
+library(minpack.lm)
+library(MASS)
+library(broom)
+library(purrr)
+
+# upload data
+data <- read.csv("data_exo3_transforme.csv", sep=';', dec='.')
+x <- data[[1]]
+y <- data[[2]]
+
+# Define logistic model
+logistic_model <- function(x, A, gamma, tau) {
+  A / (1 + exp(-gamma * (x - tau)))
+}
+
+# Adjust logistic model
+initial_params <- c(max(y), 1, median(x))
+logistic_fit <- nlsLM(y ~ logistic_model(x, A, gamma, tau), 
+                       start = list(A = initial_params[1], gamma = initial_params[2], tau = initial_params[3]),
+                       data = data)
+logistic_params <- coef(logistic_fit)
+
+# Adjust the polynomial model
+poly_model <- lm(y ~ poly(x, 7, raw = TRUE), data = data)
+
+# Predictions
+x_new <- seq(min(x), max(x), length.out = 100)
+y_logistic_pred <- logistic_model(x_new, logistic_params[1], logistic_params[2], logistic_params[3])
+y_poly_pred <- predict(poly_model, newdata = data.frame(x = x_new), se.fit = TRUE)
+
+# Calcul of CI and PI
+alpha <- 0.05
+t_value <- qt(1 - alpha / 2, df = df.residual(poly_model))
+
+# Polynomial
+ci_lower_poly <- y_poly_pred$fit - t_value * y_poly_pred$se.fit
+ci_upper_poly <- y_poly_pred$fit + t_value * y_poly_pred$se.fit
+pi_lower_poly <- y_poly_pred$fit - t_value * sqrt(y_poly_pred$se.fit^2 + sum(resid(poly_model)^2) / df.residual(poly_model))
+pi_upper_poly <- y_poly_pred$fit + t_value * sqrt(y_poly_pred$se.fit^2 + sum(resid(poly_model)^2) / df.residual(poly_model))
+
+# Logistic
+logistic_pred_se <- predict(logistic_fit, newdata = data.frame(x = x_new), se.fit = TRUE)
+ci_lower_logistic <- logistic_pred_se$fit - t_value * logistic_pred_se$se.fit
+ci_upper_logistic <- logistic_pred_se$fit + t_value * logistic_pred_se$se.fit
+pi_lower_logistic <- logistic_pred_se$fit - t_value * sqrt(logistic_pred_se$se.fit^2 + sum(resid(logistic_fit)^2) / df.residual(logistic_fit))
+pi_upper_logistic <- logistic_pred_se$fit + t_value * sqrt(logistic_pred_se$se.fit^2 + sum(resid(logistic_fit)^2) / df.residual(logistic_fit))
+
+# dataframe
+plot_data <- data.frame(
+  x = rep(x_new, 2),
+  y_pred = c(y_logistic_pred, y_poly_pred$fit),
+  ci_lower = c(ci_lower_logistic, ci_lower_poly),
+  ci_upper = c(ci_upper_logistic, ci_upper_poly),
+  pi_lower = c(pi_lower_logistic, pi_lower_poly),
+  pi_upper = c(pi_upper_logistic, pi_upper_poly),
+  model = rep(c("Logistic", "Polynomial"), each = length(x_new))
+)
+
+# Plot
+ggplot(data, aes(x, y)) +
+  geom_point(color = "blue", alpha = 0.6) +
+  geom_line(data = plot_data, aes(x, y_pred, color = model), size = 1) +
+  geom_ribbon(data = plot_data, aes(x, ymin = ci_lower, ymax = ci_upper, fill = model), alpha = 0.3) +
+  geom_ribbon(data = plot_data, aes(x, ymin = pi_lower, ymax = pi_upper, fill = model), alpha = 0.2) +
+  labs(title = "Logistic vs Polynomial Model: Confidence & Prediction Intervals", x = "x", y = "y") +
+  theme_minimal()
+
+```
+
+# S&P500 daily return
+
+The Standard and Poor's 500 or simply the S&P 500, is a stock market index tracking the performance of 500 large companies listed on stock exchanges in the United States. It is one of the most commonly followed equity indices.
+
+The dataset `sp500_history.csv` contains information about the value of the index at the opening and closing of the market, every day from January 3rd, 2007 to February 2nd, 2024. The goal of the study is to understand the distribution of the *Daily Return* during this period. The daily return is defined as the index difference between closing and opening.
+
+1. Load the dataset `sp500_history.csv` into a *data frame* and add a column that computes the daily return for each days.
+
+```{r}
+library(tidyverse)
+library(ggfortify) # extend some ggplot2 features
+theme_set(theme_bw())
+```
+```{r}
+library(readr)
+sp500 <- read_csv("sp500_history.csv")
+sp500 %>% rmarkdown::paged_table()
+```
+
+```{r}
+c <- sp500 %>% mutate(Date = as.Date(Date, format="%Y-%m-%d"))
+sp500$Daily_Return <- sp500$Close - sp500$Open
+head(sp500)
+```
+```{r}
+# ggplot2 histogram
+ggplot(sp500, aes(x = Daily_Return)) +
+  geom_histogram(binwidth = 5, fill = "steelblue", color = "black", alpha = 0.7) +
+  labs(title = "Histogram of S&P 500 Daily Returns (2007 - 2024)", 
+       x = "Daily Return", 
+       y = "Frequency") +
+  theme_minimal()
+```
+```{r}
+# Compute statistics
+returns <- sp500$Daily_Return
+mean_return <- mean(returns)
+sd_return <- sd(returns)
+summary_return <- summary(returns)
+
+# Create a formatted table
+summary_table <- data.frame(
+  Statistic = c("Mean", "Standard Deviation", "Min", "25th Percentile", "Median", "75th Percentile", "Max"),
+  Value = c(mean_return, sd_return, summary_return["Min."], summary_return["1st Qu."], summary_return["Median"], summary_return["3rd Qu."], summary_return["Max."])
+)
+
+# Print as table
+print(summary_table)
+
+```
+
+2. We propose to model the daily return as a sample from a normal population. Write the model and use *R* to fit it to the data. What do you think of this model?
+```{r}
+library(MASS)
+```
+```{r}
+normal_model <- fitdistr(sp500$Daily_Return, "normal")
+mu <- normal_model$estimate["mean"]
+sigma <- normal_model$estimate["sd"]
+```
+
+```{r}
+library(ggplot2)
+# Visualize the fit
+ggplot(sp500, aes(x = Daily_Return)) +
+  geom_histogram(aes(y = ..density..), bins = 50, fill = "skyblue", color = "black", alpha = 0.4) +
+  geom_density(color = "red", size = 1) +
+  stat_function(fun = dnorm, args = list(mean = mu, sd = sigma), 
+                color = "blue", linewidth = 1, linetype = "dashed") +
+  labs(title = "S&P 500 Daily Returns with Normal Fit",
+       x = "Daily Return",
+       y = "Density") +
+  theme_minimal() 
+```
+```{r}
+# Perform Shapiro-Wilk test for normality
+shapiro.test(sp500$Daily_Return)
+
+# QQ plot to assess normality
+qqnorm(sp500$Daily_Return)
+qqline(sp500$Daily_Return, col = "red")
+```
+
+3. Instead of a single normal, we now propose to use a mixture of normals with $p$ components. Write the corresponding models and use *R* to fit them to the data for all values of $p$ between $2$ and $6$. Discuss the results and compare them with the model of Question 1.
+```{r}
+library(mixtools)
+```
+```{r}
+# Extract daily returns
+returns <- sp500$Daily_Return
+
+# Initialize storage for BIC values
+components <- 2:6  # Range of mixture components to test
+bic_values <- numeric(length(components))
+
+# Fit GMM for p = 2 to 6 and compute BIC
+for (p in components) {
+  mix_model <- normalmixEM(returns, k = p, maxit = 15000, epsilon = 1e-8)
+  loglik <- mix_model$loglik
+  n_params <- p * 3 - 1  # Each component has (mean, variance, weight), minus 1 constraint
+  bic_values[p - 1] <- -2 * loglik + n_params * log(length(returns))  # BIC formula
+  
+  cat(p, "-component mixture log-likelihood:", loglik, " BIC:", bic_values[p - 1], "\n")
+}
+
+# Store results in a data frame
+bic_results <- data.frame(Components = components, BIC = bic_values)
+
+# Print BIC values
+print(bic_results)
+
+# BIC plot to determine the optimal number of components
+ggplot(bic_results, aes(x = Components, y = BIC)) +
+  geom_line(color = "blue") +
+  geom_point(size = 3, color = "red") +
+  labs(title = "BIC for Gaussian Mixture Models (2-6 Components)",
+       x = "Number of Components",
+       y = "BIC") +
+  theme_minimal()
+```
+```{r}
+# Select the best number of components based on BIC
+best_p <- components[which.min(bic_values)]
+cat("Best number of components:", best_p, "\n")
+
+# Fit the final best Gaussian Mixture Model
+best_mix <- normalmixEM(returns, k = best_p, maxit = 5000, epsilon = 1e-8)
+```
+```{r}
+# Plot histogram with mixture density estimate
+ggplot(data.frame(returns), aes(x = returns)) +
+  geom_histogram(aes(y = ..density..), bins = 50, fill = "steelblue", color = "black", alpha = 0.6) +
+  stat_function(fun = function(x) {
+    # Correctly sum over all mixture components
+    sapply(x, function(xi) sum(best_mix$lambda * dnorm(xi, mean = best_mix$mu, sd = best_mix$sigma)))
+  }, color = "red", size = 1) +
+  labs(title = paste("Gaussian Mixture Model (", best_p, "Components)"),
+       x = "Daily Return",
+       y = "Density") +
+  theme_minimal()
+```
+
+
+4. As a third and last model, we propose to model the daily return as coming from a location-scale family of Student distributions, which is a model defined by the collection of densities
+$$f_{\nu,m,a}(x) = \frac{\Gamma\big(\frac{\nu+1}{2}\big)}{\sqrt{\pi \nu a^2}\Gamma\big(\frac{\nu}{2}\big)}\Bigg(1+\frac{(x-m)^2}{\nu a^2} \Bigg)^{-\frac{\nu+1}{2}}$$
+where $\Gamma$ is the Gamma function and $\theta=(\nu,m,a) \in \mathbb{R}_+^*\times \mathbb{R}\times \mathbb{R}_+^*$ is the parameter.
+    1. What is the motivation for considering this model?
+    2. Propose an algorithm for estimating the parameter of this model and use it to fit this model to the data.
+```{r}
+# Initialize parameters
+nu <- 5
+m  <- mean(returns)
+a  <- sd(returns)
+
+repeat {
+  # E-step: compute weights
+  w <- (nu + 1) / (nu + ((returns - m)/a)^2)
+  
+  # M-step: update m and a
+  m_new <- sum(w * returns) / sum(w)
+  a_new <- sqrt(sum(w * (returns - m_new)^2) / sum(w))
+  
+  # Update nu by optimizing log-likelihood w.rt. nu
+  loglik_nu <- function(v) { 
+    # returns negative log-likelihood for given v (to minimize)
+    if(v <= 0) return(Inf)
+    # use density of t (from dt) to compute log-lik
+    -sum(dt((returns - m_new)/a_new, df=v, log=TRUE) - log(a_new))
+  }
+  nu_new <- optimize(loglik_nu, interval=c(2.001, 100))$minimum
+  
+  # Convergence check
+  if(abs(m_new - m) < 1e-6 && abs(a_new - a) < 1e-6 && abs(nu_new - nu) < 1e-6) break
+  nu <- nu_new; m <- m_new; a <- a_new
+}
+nu; m; a   # estimated parameters
+```
+```{r}
+# Plot histogram with Student-t and Normal overlay
+ggplot(data.frame(returns), aes(x = returns)) +
+  geom_histogram(aes(y = ..density..), bins = 50, fill = "steelblue", color = "black", alpha = 0.6) +
+
+  # Overlay Normal Distribution
+  stat_function(fun = dnorm, args = list(mean = mean(returns), sd = sd(returns)), 
+                color = "red", size = 1, linetype = "dashed") +
+
+  # Overlay Student-t Distribution
+  stat_function(fun = function(x) {
+    dt((x - m) / a, df = nu) / a
+  }, color = "blue", size = 1) +
+
+  labs(title = "Comparison of Normal and Student-t Distributions for S&P 500 Daily Returns",
+       x = "Daily Return",
+       y = "Density") +
+  theme_minimal()
+
+```
+    
+5. Between all the previous models (the normal, the 5 mixtures of normals, and the location-scale Student) which one do you choose? Explain your methodology.
+```{r}
+returns <- na.omit(sp500$Daily_Return)
+n <- length(returns)  # Number of observations
+
+# --------------------------- #
+# 1️⃣ Compute for Normal Model
+# --------------------------- #
+normal_model <- fitdistr(returns, "normal")
+loglik_normal <- sum(dnorm(returns, mean = normal_model$estimate["mean"], 
+                           sd = normal_model$estimate["sd"], log = TRUE))
+k_normal <- 2  # Parameters: mean, variance
+aic_normal <- -2 * loglik_normal + 2 * k_normal
+bic_normal <- -2 * loglik_normal + k_normal * log(n)
+
+cat("AIC (Normal):", aic_normal, "\n")
+cat("BIC (Normal):", bic_normal, "\n")
+
+# --------------------------- #
+# 2️⃣ Compute for Gaussian Mixture Models (p = 2 to 6)
+# --------------------------- #
+components <- 2:6  # Range of mixture components
+loglik_values <- numeric(length(components))
+aic_values <- numeric(length(components))
+bic_values <- numeric(length(components))
+
+for (p in components) {
+  mix_model <- normalmixEM(returns, k = p, maxit = 5000, epsilon = 1e-8)
+  loglik <- mix_model$loglik
+  k_gmm <- p * 3 - 1  # Each component has (mean, variance, weight), minus 1 constraint
+  loglik_values[p - 1] <- loglik
+  aic_values[p - 1] <- -2 * loglik + 2 * k_gmm
+  bic_values[p - 1] <- -2 * loglik + k_gmm * log(n)
+  
+  cat(p, "-component mixture log-likelihood:", loglik, " AIC:", aic_values[p - 1], 
+      " BIC:", bic_values[p - 1], "\n")
+}
+
+# Store results in a dataframe
+gmm_results <- data.frame(Components = components, Log_Likelihood = loglik_values, 
+                          AIC = aic_values, BIC = bic_values)
+
+# --------------------------- #
+# 3️⃣ Compute for Student-t Model
+# --------------------------- #
+t_fit <- fitdistr(returns, "t", start = list(m = mean(returns), s = sd(returns), df = 5))
+
+loglik_t <- sum(dt((returns - t_fit$estimate["m"]) / t_fit$estimate["s"], 
+                   df = t_fit$estimate["df"], log = TRUE) - log(t_fit$estimate["s"]))
+k_t <- 3  # Parameters: degrees of freedom, location, scale
+aic_t <- -2 * loglik_t + 2 * k_t
+bic_t <- -2 * loglik_t + k_t * log(n)
+
+cat("AIC (Student-t):", aic_t, "\n")
+cat("BIC (Student-t):", bic_t, "\n")
+
+# --------------------------- #
+# 4️⃣ Store All Results in a Comparison Table
+# --------------------------- #
+model_comparison <- data.frame(
+  Model = c("Normal Distribution", paste0("GMM (", components, " Components)"), "Student-t Distribution"),
+  Log_Likelihood = c(loglik_normal, loglik_values, loglik_t),
+  AIC = c(aic_normal, aic_values, aic_t),
+  BIC = c(bic_normal, bic_values, bic_t),
+  Interpretability = c("Simple", rep("Complex", length(components)), "Good"),
+  Captures_Heavy_Tails = c("No", rep("Yes", length(components)), "Yes"),
+  Complexity = c("Low", rep("High", length(components)), "Moderate")
+)
+
+# Print the comparison table
+print(model_comparison)
+```
+
+
+6. Is the expected daily return different than zero?
+```{r}
+# Perform a one-sample t-test to check if mean return is significantly different from zero
+t_test <- t.test(returns, mu = 0)
+
+# Print test results
+print(t_test)
+```
+
+
